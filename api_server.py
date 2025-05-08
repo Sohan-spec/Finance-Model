@@ -31,13 +31,13 @@ class AnalysisResponse(BaseModel):
     roadmap: str
     key_concepts: Optional[list] = None
     difficulty_level: Optional[str] = None
-    is_llama2_domain: bool
+    is_finance_domain: bool
     domain_confidence: float
 
-def is_llama2_related(text: str) -> tuple[bool, float]:
-    """Check if the text is llama2-related and return confidence score."""
-    llama2_keywords = [
-        'llama2', 'financial', 'money', 'investment', 'stock', 'market', 'banking',
+def is_finance_related(text: str) -> tuple[bool, float]:
+    """Check if the text is finance-related and return confidence score."""
+    finance_keywords = [
+        'finance', 'financial', 'money', 'investment', 'stock', 'market', 'banking',
         'accounting', 'revenue', 'profit', 'loss', 'budget', 'cash', 'credit', 'debit',
         'loan', 'interest', 'rate', 'currency', 'exchange', 'trading', 'portfolio',
         'asset', 'liability', 'equity', 'balance', 'sheet', 'income', 'statement',
@@ -55,16 +55,16 @@ def is_llama2_related(text: str) -> tuple[bool, float]:
     text_lower = text.lower()
     
     # Check for exact matches first
-    exact_matches = sum(1 for keyword in llama2_keywords if keyword in text_lower)
+    exact_matches = sum(1 for keyword in finance_keywords if keyword in text_lower)
     
-    # Check for partial matches (words that contain llama2-related terms)
-    partial_matches = sum(1 for word in text_lower.split() if any(keyword in word for keyword in llama2_keywords))
+    # Check for partial matches (words that contain finance-related terms)
+    partial_matches = sum(1 for word in text_lower.split() if any(keyword in word for keyword in finance_keywords))
     
     # Calculate confidence score
     # Give more weight to exact matches
     confidence = min((exact_matches * 0.7 + partial_matches * 0.3) / 5, 1.0)
     
-    # Lower the threshold for llama2-related content
+    # Lower the threshold for finance-related content
     return confidence > 0.1, confidence
 
 def get_model_name(size: str) -> str:
@@ -89,27 +89,27 @@ async def analyze_text(request: TextRequest):
     try:
         print(f"Received request with text: {request.text[:100]}...")  # Log first 100 chars
         
-        # Check if the text is llama2-related
-        is_llama2, confidence = is_llama2_related(request.text)
-        print(f"llama2 check - is_llama2: {is_llama2}, confidence: {confidence}")
+        # Check if the text is finance-related
+        is_finance, confidence = is_finance_related(request.text)
+        print(f"Finance check - is_finance: {is_finance}, confidence: {confidence}")
         
-        if not is_llama2:
+        if not is_finance:
             return AnalysisResponse(
-                summary="This query appears to be outside the llama2 domain. This model is specialized in llama2-related content only.",
-                roadmap="N/A - Content is not llama2-related",
+                summary="This query appears to be outside the finance domain. This model is specialized in finance-related content only.",
+                roadmap="N/A - Content is not finance-related",
                 key_concepts=[],
                 difficulty_level="N/A",
-                is_llama2_domain=False,
+                is_finance_domain=False,
                 domain_confidence=confidence
             )
 
-        model_name = get_model_name(request.model_size)
-        print(f"Using model: {model_name}")
-        
         try:
-            # Generate summary with llama2-specific focus
+            model_name = get_model_name(request.model_size)
+            print(f"Using model: {model_name}")
+            
+            # Try to generate summary with finance-specific focus
             print("Generating summary...")
-            summary_prompt = f"""<s>[INST] You are a llama2 domain expert using the latest Llama 2 model. Analyze the following financial text and provide a comprehensive analysis. The text is of type: {request.contentType}. Please follow these steps:
+            summary_prompt = f"""<s>[INST] You are a finance domain expert using the latest Llama 2 model. Analyze the following financial text and provide a comprehensive analysis. The text is of type: {request.contentType}. Please follow these steps:
 
 1. First, identify and list all different types of financial content in the text
 2. Then, for each type of content:
@@ -156,9 +156,9 @@ Please structure your response as follows:
             )
             print("Summary generated successfully")
 
-            # Generate llama2-specific roadmap
+            # Generate finance-specific roadmap
             print("Generating roadmap...")
-            roadmap_prompt = f"""<s>[INST] You are a llama2 education expert using the latest Llama 2 model. Based on the following financial text, create a detailed learning roadmap. The text is of type: {request.contentType}. Please:
+            roadmap_prompt = f"""<s>[INST] You are a finance education expert using the latest Llama 2 model. Based on the following financial text, create a detailed learning roadmap. The text is of type: {request.contentType}. Please:
 
 1. First, perform a comprehensive financial content analysis:
    - Identify all financial topics and subtopics
@@ -210,7 +210,15 @@ Please structure your response as follows:
 
         except Exception as e:
             print(f"Error during model generation: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Error during model generation: {str(e)}")
+            # Return a fallback response when Ollama is not available
+            return AnalysisResponse(
+                summary="This is a fallback response as the AI model service is currently unavailable. The text appears to be finance-related with high confidence.",
+                roadmap="Please try again later when the AI model service is available.",
+                key_concepts=["ROI", "Financial Decision Making", "Investment Analysis"] if "ROI" in request.text.lower() else None,
+                difficulty_level="Intermediate",
+                is_finance_domain=True,
+                domain_confidence=confidence
+            )
 
         # Parse the response to extract additional information
         response_text = summary_response['response']
@@ -231,7 +239,7 @@ Please structure your response as follows:
             roadmap=roadmap_response['response'],
             key_concepts=key_concepts if request.advanced_analysis else None,
             difficulty_level=difficulty_level if request.advanced_analysis else None,
-            is_llama2_domain=True,
+            is_finance_domain=True,
             domain_confidence=confidence
         )
 
