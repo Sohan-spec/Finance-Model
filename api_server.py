@@ -5,9 +5,20 @@ from typing import Optional
 import uvicorn  
 import json
 import re
+from fastapi.middleware.cors import CORSMiddleware
+import os
 
 
-app = FastAPI(title="llama2 Document Analysis API")
+app = FastAPI(title="Finance Document Analysis API")
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
 
 class TextRequest(BaseModel):
     text: str
@@ -232,10 +243,12 @@ if __name__ == "__main__":
     # Check if Llama 2 model is available
     try:
         models = ollama.list()
-        llama_models = [m for m in models['models'] if m['name'].startswith('llama2')]
+        llama_models = [m for m in models['models'] if m['name'].startswith('Finance')]
         if not llama_models:
-            print("Warning: No Llama 2 models found. Please pull a model using: ollama pull llama2:7b")
+            print("Warning: No Llama 2 models found. Please pull a model using: ollama pull Finance:7b")
     except Exception as e:
         print(f"Error checking models: {e}")
     
-    uvicorn.run(app, host="0.0.0.0", port=8000) 
+    # Update for Railway deployment
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port) 
